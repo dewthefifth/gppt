@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist>
+  <schema id="org.gnome.shell.extensions.discord-ptt"
+          path="/org/gnome/shell/extensions/discord-ptt/">
+
+    <!-- Deprecated: kept for GJS module cache compatibility. No longer used. -->
+    <key type="s" name="device-path">
+      <default>''</default>
+      <summary>Deprecated — device path (unused)</summary>
+      <description>No longer used. Daemon now listens on all devices.</description>
+    </key>
+
+    <!-- Raw Linux evdev keycode (NOT the XKB/GDK keycode).
+         Default 58 = KEY_CAPSLOCK — a commonly unused, easy-to-reach key. -->
+    <key type="i" name="ptt-key-code">
+      <default>58</default>
+      <summary>PTT evdev key code</summary>
+      <description>
+        Raw Linux evdev keycode for the push-to-talk key.
+        This is the kernel keycode, not the XKB keycode (XKB = evdev + 8).
+        Default 58 = KEY_CAPSLOCK.
+      </description>
+    </key>
+
+    <!-- Master switch: controls whether the daemon is currently running -->
+    <key type="b" name="is-active">
+      <default>false</default>
+      <summary>PTT enabled</summary>
+      <description>Whether the push-to-talk daemon is currently running.</description>
+    </key>
+
+    <!-- Click sound toggle -->
+    <key type="b" name="ptt-sound-enabled">
+      <default>true</default>
+      <summary>PTT click sound</summary>
+      <description>
+        Play a Discord-style click sound when the PTT key is pressed and released.
+      </description>
+    </key>
+
+  </schema>
+</schemalist>

@@ -1,0 +1,5 @@
+.git.bak/
+schemas/gschemas.compiled
+__pycache__/
+*.py[cod]
+.Python

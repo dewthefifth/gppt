@@ -1,0 +1,9 @@
+{
+  "uuid": "discord-ptt@vimax.example.com",
+  "name": "Discord Push-to-Talk",
+  "description": "Push-to-Talk for Discord/Vesktop on Wayland via evdev + PipeWire",
+  "version": 1,
+  "shell-version": ["45", "46", "47", "48", "49", "50"],
+  "settings-schema": "org.gnome.shell.extensions.discord-ptt",
+  "url": "https://github.com/vimax/gppt"
+}
