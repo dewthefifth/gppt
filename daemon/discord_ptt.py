@@ -38,6 +38,7 @@ except ImportError:
     sys.exit(1)
 
 IDLE_MUTE_INTERVAL_SEC = 1.0
+HOTPLUG_SCAN_INTERVAL_SEC = 1.5
 
 log = logging.getLogger('discord_ptt')
 
@@ -155,7 +156,23 @@ class PushToTalkController:
         self._running   = True
         self._loop: asyncio.AbstractEventLoop | None = None
         self._guard_task: asyncio.Task | None = None
+        self._hotplug_task: asyncio.Task | None = None
         self._mute_lock: asyncio.Lock | None = None
+        self._opened_paths: set[str] = set()
+        self._device_tasks: set[asyncio.Task] = set()
+
+    def _spawn_listener(self, device: evdev.InputDevice) -> None:
+        path = device.path
+        if path in self._opened_paths:
+            try:
+                device.close()
+            except Exception:
+                pass
+            return
+        self._opened_paths.add(path)
+        t = asyncio.create_task(self._listen_device(device))
+        self._device_tasks.add(t)
+        t.add_done_callback(lambda fut: self._device_tasks.discard(fut))
 
     def _discover_outputs(self) -> list[int]:
         ids = find_discord_source_outputs()
@@ -218,6 +235,24 @@ class PushToTalkController:
         except asyncio.CancelledError:
             raise
 
+    async def _hotplug_loop(self) -> None:
+        try:
+            while self._running:
+                await asyncio.sleep(HOTPLUG_SCAN_INTERVAL_SEC)
+                if not self._running:
+                    break
+                for path in evdev.list_devices():
+                    if path in self._opened_paths:
+                        continue
+                    try:
+                        d = evdev.InputDevice(path)
+                    except (PermissionError, FileNotFoundError, OSError):
+                        continue
+                    log.info('New input device: %s (%s)', d.name, path)
+                    self._spawn_listener(d)
+        except asyncio.CancelledError:
+            raise
+
     # ── Sound ─────────────────────────────────────────────────────────────────
 
     async def _play_sound(self, sound_path: str | None) -> None:
@@ -245,6 +280,8 @@ class PushToTalkController:
         self._running = False
         if self._guard_task and not self._guard_task.done():
             self._guard_task.cancel()
+        if self._hotplug_task and not self._hotplug_task.done():
+            self._hotplug_task.cancel()
         for oid in find_discord_source_outputs():
             set_mute(oid, False)
 
@@ -286,7 +323,10 @@ class PushToTalkController:
                     self._ptt_release(path, device.name, True)
         except OSError as e:
             log.debug('Device "%s" disconnected: %s', device.name, e)
+        except asyncio.CancelledError:
+            raise
         finally:
+            self._opened_paths.discard(path)
             if self._running:
                 self._ptt_release(path, device.name, False)
             else:
@@ -302,34 +342,40 @@ class PushToTalkController:
         self._loop = asyncio.get_running_loop()
         self._mute_lock = asyncio.Lock()
 
-        # Open every accessible event device
-        opened, skipped = [], 0
-        for path in evdev.list_devices():
+        paths = evdev.list_devices()
+        if not paths:
+            log.error('No /dev/input event devices found.')
+            sys.exit(1)
+
+        opened: list[evdev.InputDevice] = []
+        skipped = 0
+        for path in paths:
             try:
-                d = evdev.InputDevice(path)
-                opened.append(d)
+                opened.append(evdev.InputDevice(path))
             except (PermissionError, FileNotFoundError, OSError):
                 skipped += 1
 
         if not opened:
-            log.error(
-                'No accessible input devices found.\n'
-                '  Fix: sudo usermod -aG input %s  (then log out and back in)',
-                os.getenv('USER', '$USER')
+            log.warning(
+                'Could not open any input device yet (%d skipped — permissions or timing). '
+                'Will attach Bluetooth/USB keyboards when they appear. '
+                'If this persists: sudo usermod -aG input %s  (then log out and in)',
+                skipped, os.getenv('USER', '$USER'),
             )
-            sys.exit(1)
 
-        log.info('Listening on %d devices (skipped %d) for keycode %d',
-                 len(opened), skipped, self.ptt_keycode)
         for d in opened:
             log.debug('  → %s (%s)', d.path, d.name)
+            self._spawn_listener(d)
+
+        log.info('Listening for keycode %d — %d device(s) now, %d skipped, hotplug every %.1fs',
+                 self.ptt_keycode, len(opened), skipped, HOTPLUG_SCAN_INTERVAL_SEC)
 
         await self._apply_mute_async(True)
 
         self._guard_task = asyncio.create_task(self._idle_mute_guard())
-        tasks = [asyncio.create_task(self._listen_device(d)) for d in opened]
+        self._hotplug_task = asyncio.create_task(self._hotplug_loop())
         try:
-            await asyncio.gather(*tasks, return_exceptions=True)
+            await asyncio.gather(self._guard_task, self._hotplug_task)
         finally:
             if self._guard_task:
                 self._guard_task.cancel()
@@ -338,11 +384,21 @@ class PushToTalkController:
                 except asyncio.CancelledError:
                     pass
                 self._guard_task = None
+            if self._hotplug_task:
+                self._hotplug_task.cancel()
+                try:
+                    await self._hotplug_task
+                except asyncio.CancelledError:
+                    pass
+                self._hotplug_task = None
+            for t in list(self._device_tasks):
+                t.cancel()
+            if self._device_tasks:
+                await asyncio.gather(*self._device_tasks, return_exceptions=True)
+            self._device_tasks.clear()
             if self._devices_holding:
                 log.info('Key held at exit — ensuring Discord is unmuted')
                 await self._apply_mute_async(False)
-            for t in tasks:
-                t.cancel()
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Entry point

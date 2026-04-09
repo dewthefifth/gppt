@@ -48,7 +48,7 @@ Two-layer design: a GNOME Shell extension (JavaScript) manages lifecycle, while 
 ### Python Daemon (`daemon/discord_ptt.py`)
 
 Runs as an independent asyncio process. Key behaviors:
-- Opens **all** accessible `/dev/input/` devices concurrently, each in its own coroutine
+- Opens **all** accessible `/dev/input/` devices at startup, each in its own coroutine; rescans every ~1.5s for **new** nodes (Bluetooth/USB hotplug)
 - Listens for the configured evdev keycode (not XKB — the offset is `hardware_keycode - 8 = evdev_code`)
 - On keypress: calls `find_discord_source_output()` → `pactl set-source-output-mute 0`; on release: mute
 - `find_discord_source_output()` uses `pactl --format=json list source-outputs` to find Discord/Vesktop/Electron voice engine; re-discovers automatically if mute fails

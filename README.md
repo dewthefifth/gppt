@@ -21,6 +21,7 @@ Notes:
 - The daemon does not talk to the shell over a socket: config is passed as **CLI arguments**; changing settings **restarts** the daemon (with a short delay).
 - **Multiple keyboards/devices** are handled: the mic is muted only when the key is released on **every** device where it was pressed; unplugging a USB device clears the “held” state for that device.
 - When PTT is off in the menu, the daemon is not running; unmute on exit is done in the daemon’s signal handler.
+- Keyboards or mice that show up **after** startup (common with **Bluetooth**) are picked up on a short interval (~1.5s) and wired the same as built-in devices.
 
 Developer-oriented details: [CLAUDE.md](CLAUDE.md).
 
