@@ -95,6 +95,13 @@ If the icon does not show, log out and back in (on Wayland a full session restar
 
 ## First-time setup
 
+---
+**Note**
+
+For Bazzite and other atomic operating systems, there may be additional steps. See [add-user-to-group](https://docs.bazzite.gg/Advanced/add-user-to-group/)
+
+---
+
 1. **`input` group** (if the daemon reports no access to devices):
 
    ```bash
@@ -102,6 +109,7 @@ If the icon does not show, log out and back in (on Wayland a full session restar
    ```
 
    Then **log out and log in again**.
+
 
 2. In the extension menu (microphone icon on the panel), turn **Enable PTT** on.
 

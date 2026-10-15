@@ -109,6 +109,33 @@ function showKeyCaptureDialog(parentWindow, onCapture) {
         return true;
     });
 
+    // Capture mouse buttons as well as keyboard keys.
+    const mouse = new Gtk.GestureClick();
+    mouse.set_button(0);
+    mouse.set_propagation_phase(Gtk.PropagationPhase.CAPTURE);
+
+    mouse.connect('pressed', (gesture, _nPress, _x, _y) => {
+        const button = gesture.get_current_button();
+
+        // GTK button numbers → Linux evdev button codes.
+        const buttonCodes = {
+            1: 272, // Left
+            2: 274, // Middle
+            3: 273, // Right
+            8: 275, // Side button (back, if reported as GTK 8)
+            9: 276, // Extra button (forward, confirmed on your system)
+        };
+
+        const evdevCode = buttonCodes[button];
+        if (evdevCode === undefined)
+            return;
+
+        onCapture(evdevCode);
+        dialog.close();
+    });
+
+    dialog.add_controller(mouse);
+
     dialog.present();
 }
 
